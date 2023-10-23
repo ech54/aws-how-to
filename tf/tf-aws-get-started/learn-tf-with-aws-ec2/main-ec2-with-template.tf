@@ -1,46 +1,3 @@
-# declare directory
-/*
-data "aws_directory_service_directory" "my_domain_controller" {
-  directory_id = var.directory_id
-}
-*/
-
-/*
-resource "aws_ssm_document" "ad-join-domain" {
-  name          = "ad-join-domain"
-  document_type = "Command"
-  content = jsonencode(
-    {
-      "schemaVersion" = "2.2"
-      "description"   = "aws:domainJoin"
-      "mainSteps" = [
-        {
-          "action" = "aws:domainJoin",
-          "name"   = "domainJoin",
-          "inputs" = {
-            "directoryId" : data.aws_directory_service_directory.my_domain_controller.id,
-            "directoryName" : data.aws_directory_service_directory.my_domain_controller.name
-            "dnsIpAddresses" : sort(data.aws_directory_service_directory.my_domain_controller.dns_ip_addresses)
-          }
-        }
-      ]
-    }
-  )
-}
-*/
-/*
-resource "aws_ssm_association" "windows_server" {
-  name = aws_ssm_document.ad-join-domain.name
-  targets {
-    key    = "InstanceIds"
-    values = [
-      aws_instance.adfs-primary.id,
-      aws_instance.adfs-secondary.id
-    ]
-  }
-}
-*/
-
 data "aws_ami" "win22" {
 
   most_recent = true
@@ -53,66 +10,66 @@ data "aws_ami" "win22" {
 }
 
 
-# Define the security group for the MFA server
-resource "aws_security_group" "adfs" {
-  name        = "${lower(var.app_name)}-${var.app_environment}-adfs"
-  description = "ADFS Servers Security Group"
+# Define the security group for ?
+resource "aws_security_group" "server-ssg" {
+  name        = "${lower(var.app_name)}-${var.app_environment}-ssg"
+  description = "Servers Security Group"
   vpc_id      = var.vpc_id
 
   tags = {
-    Name        = "${lower(var.app_name)}-${var.app_environment}-adfs"
+    Name        = "${lower(var.app_name)}-${var.app_environment}-ssg"
     Environment = var.app_environment
   }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "adfs-1" {
-  security_group_id = aws_security_group.adfs.id
+resource "aws_vpc_security_group_ingress_rule" "server-ingress-1" {
+  security_group_id = aws_security_group.server-ssg.id
 
   from_port   = 443
   to_port     = 443
   ip_protocol = "tcp"
-  referenced_security_group_id = aws_security_group.adfs-nlb.id
+  referenced_security_group_id = aws_security_group.server-ssg.id
   description = "Allow incoming HTTPS"
 }
 
-resource "aws_vpc_security_group_ingress_rule" "adfs-2" {
-  security_group_id = aws_security_group.adfs.id
+resource "aws_vpc_security_group_ingress_rule" "server-ingress-2" {
+  security_group_id = aws_security_group.server-ssg.id
 
   from_port   = 3389
   to_port     = 3389
   ip_protocol = "tcp"
-  cidr_ipv4   = var.srv4dev_cidr
+  cidr_ipv4   = var.rdp_cidr
   description = "Allow incoming RDP"
 }
 
-resource "aws_vpc_security_group_ingress_rule" "adfs-3" {
-  security_group_id = aws_security_group.adfs.id
+resource "aws_vpc_security_group_ingress_rule" "server-ingress-3" {
+  security_group_id = aws_security_group.server-ssg.id
 
   from_port                    = 80
   to_port                      = 80
   ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.adfs.id
+  referenced_security_group_id = aws_security_group.server-ssg.id
 }
 
-resource "aws_vpc_security_group_ingress_rule" "adfs-4" {
-  security_group_id = aws_security_group.adfs.id
+resource "aws_vpc_security_group_ingress_rule" "server-ingress-4" {
+  security_group_id = aws_security_group.server-ssg.id
 
   from_port                    = 80
   to_port                      = 80
   ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.adfs-nlb.id
+  referenced_security_group_id = aws_security_group.server-nlb.id
 }
 
-resource "aws_vpc_security_group_egress_rule" "adfs-1" {
-  security_group_id = aws_security_group.adfs.id
+resource "aws_vpc_security_group_egress_rule" "server-egress-1" {
+  security_group_id = aws_security_group.server-ssg.id
 
   ip_protocol = "-1"
   cidr_ipv4   = "0.0.0.0/0"
 }
 
-resource "aws_security_group" "adfs-nlb" {
-  name        = "${lower(var.app_name)}-${var.app_environment}-adfs-nlb"
-  description = "ADFS ALB Security Group"
+resource "aws_security_group" "server-nlb" {
+  name        = "${lower(var.app_name)}-${var.app_environment}-nlb-ssg"
+  description = "ALB Security Group"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -131,21 +88,21 @@ resource "aws_security_group" "adfs-nlb" {
   }
 
   tags = {
-    Name        = "${lower(var.app_name)}-${var.app_environment}-adfs-nlb"
+    Name        = "${lower(var.app_name)}-${var.app_environment}-nlb-ssg"
     Environment = var.app_environment
   }
 }
 
 # Create the Launch Template
-resource "aws_launch_template" "adfs_primary" {
-  name                   = "${lower(var.app_name)}-${var.app_environment}-adfs-primary"
+resource "aws_launch_template" "server_primary" {
+  name                   = "${lower(var.app_name)}-${var.app_environment}-server-primary"
   image_id               = data.aws_ami.win22.id
   instance_type          = var.instance_type
-  vpc_security_group_ids = [aws_security_group.adfs.id]
+  vpc_security_group_ids = [aws_security_group.server-ssg.id]
   update_default_version = true
 
   iam_instance_profile {
-    name = aws_iam_instance_profile.adfs.name
+    name = aws_iam_instance_profile.server-profile.name
   }
 
   block_device_mappings {
@@ -164,21 +121,21 @@ resource "aws_launch_template" "adfs_primary" {
     resource_type = "instance"
 
     tags = {
-      Name        = "${lower(var.app_name)}-${var.app_environment}-adfs"
+      Name        = "${lower(var.app_name)}-${var.app_environment}-server-windows"
       Environment = var.app_environment
     }
   }
 }
 
-resource "aws_launch_template" "adfs_secondary" {
-  name                   = "${lower(var.app_name)}-${var.app_environment}-adfs-secondary"
+resource "aws_launch_template" "server_secondary" {
+  name                   = "${lower(var.app_name)}-${var.app_environment}-server-secondary"
   image_id               = data.aws_ami.win22.id
   instance_type          = var.instance_type
-  vpc_security_group_ids = [aws_security_group.adfs.id]
+  vpc_security_group_ids = [aws_security_group.server-ssg.id]
   update_default_version = true
 
   iam_instance_profile {
-    name = aws_iam_instance_profile.adfs.name
+    name = aws_iam_instance_profile.server-profile.name
   }
 
   block_device_mappings {
@@ -197,37 +154,37 @@ resource "aws_launch_template" "adfs_secondary" {
     resource_type = "instance"
 
     tags = {
-      Name        = "${lower(var.app_name)}-${var.app_environment}-adfs"
+      Name        = "${lower(var.app_name)}-${var.app_environment}-server"
       Environment = var.app_environment
     }
   }
 }
 
-resource "aws_instance" "adfs-primary" {
+resource "aws_instance" "server-primary" {
   launch_template {
-    id      = aws_launch_template.adfs_primary.id
+    id      = aws_launch_template.server_primary.id
     version = "$Latest"
   }
 
   subnet_id = var.private_subnet_1_id
 
   tags = {
-    Name = "common-test-adfs-primary"
+    Name = "test-server-primary"
     backup = "true"
     PatchGroup = "test-win-az1"
   }
 }
 
-resource "aws_instance" "adfs-secondary" {
+resource "aws_instance" "server-secondary" {
   launch_template {
-    id      = aws_launch_template.adfs_secondary.id
+    id      = aws_launch_template.server_secondary.id
     version = "$Latest"
   }
 
   subnet_id = var.private_subnet_2_id
 
   tags = {
-    Name = "common-test-adfs-secondary"
+    Name = "test-server-secondary"
     backup = "true"
     PatchGroup = "test-win-az2"
   }
@@ -246,8 +203,8 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 }
 
 # Configure IAM Role
-resource "aws_iam_role" "adfs" {
-  name               = "adfs-ec2"
+resource "aws_iam_role" "server-role" {
+  name               = "test-server-ec2"
   path               = "/"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
   managed_policy_arns = [
@@ -257,10 +214,7 @@ resource "aws_iam_role" "adfs" {
   ]
 }
 
-# Configure IAM Instance Profile
-/*
-resource "aws_iam_instance_profile" "adfs" {
-  name = "adfs"
-  role = aws_iam_role.adfs.name
+resource "aws_iam_instance_profile" "server-profile" {
+  name = "server-profile"
+  role = aws_iam_role.server-role.name
 }
-*/

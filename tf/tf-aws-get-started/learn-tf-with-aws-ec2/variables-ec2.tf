@@ -35,4 +35,8 @@ variable "private_subnet_2_id" {
   default     = "CHANGE ME"
 }
 
+variable "rdp_cidr" {
+  type = string
+}
+
 
