@@ -1,0 +1,10 @@
+dev:
+  cidr: "10.66.135.0/24"
+  secondary_cidr_blocks:
+   - "193.168.8.0/21"
+  private_subnets: ["193.168.8.0/22", "193.168.12.0/22"]
+  private_subnet_tags: 
+    kubernetes.io/cluster/cc-dev: shared 
+    kubernetes.io/role/internal-elb: 1
+  tags:
+prod:
