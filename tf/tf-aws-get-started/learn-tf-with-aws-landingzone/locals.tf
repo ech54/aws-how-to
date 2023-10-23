@@ -1,5 +1,5 @@
 locals {
-  env_config = yamldecode(file("./config.yaml"))[variable.env]
+  env_config = yamldecode(file("./config.yaml"))[var.env]
   config = merge(
     local.env_config
   )
